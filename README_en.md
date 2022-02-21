@@ -1,46 +1,41 @@
 English | [简体中文](README_cn.md)
 
-Documentation:[https://paddledetection.readthedocs.io](https://paddledetection.readthedocs.io)
+
+# Product news
+
+- 2021.11.03: Release [release/2.3](https://github.com/PaddlePaddle/Paddleetection/tree/release/2.3) version. Release mobile object detection model ⚡[PP-PicoDet](configs/picodet), mobile keypoint detection model ⚡[PP-TinyPose](configs/keypoint/tiny_pose)，Real-time tracking system [PP-Tracking](deploy/pptracking). Release object detection models, including [Swin-Transformer](configs/faster_rcnn), [TOOD](configs/tood), [GFL](configs/gfl), release [Sniper](configs/sniper) tiny object detection models and optimized [PP-YOLO-EB](configs/ppyolo) model for EdgeBoard. Release mobile keypoint detection model [Lite HRNet](configs/keypoint).
+- 2021.08.10: Release [release/2.2](https://github.com/PaddlePaddle/Paddleetection/tree/release/2.2) version. Release Transformer object detection models, including [DETR](configs/detr), [Deformable DETR](configs/deformable_detr), [Sparse RCNN](configs/sparse_rcnn). Release [keypoint detection](configs/keypoint) models, including DarkHRNet and model trained on MPII dataset. Release [head-tracking](configs/mot/headtracking21) and [vehicle-tracking](configs/mot/vehicle) multi-object tracking models.
+- 2021.05.20: Release [release/2.1](https://github.com/PaddlePaddle/Paddleetection/tree/release/2.1) version. Release [Keypoint Detection](configs/keypoint), including HigherHRNet and HRNet, [Multi-Object Tracking](configs/mot), including DeepSORT，JDE and FairMOT. Release model compression for PPYOLO series models.Update documents such as [EXPORT ONNX MODEL](deploy/EXPORT_ONNX_MODEL.md).
+
 
 # Introduction
 
-PaddleDetection is an end-to-end object detection development kit based on PaddlePaddle, which aims to help developers in the whole development of constructing, training, optimizing and deploying detection models in a faster and better way.
+PaddleDetection is an end-to-end object detection development kit based on PaddlePaddle, which implements varied mainstream object detection, instance segmentation, tracking and keypoint detection algorithms in modular designwhich with configurable modules such as network components, data augmentations and losses, and release many kinds SOTA industry practice models, integrates abilities of model compression and cross-platform high-performance deployment, aims to help developers in the whole end-to-end development in a faster and better way.
 
-PaddleDetection implements varied mainstream object detection algorithms in modular design, and provides wealthy data augmentation methods, network components(such as backbones), loss functions, etc., and integrates abilities of model compression and cross-platform high-performance deployment.
+### PaddleDetection provides image processing capabilities such as object detection, instance segmentation, multi-object tracking, keypoint detection and etc.
 
-After a long time of industry practice polishing, PaddleDetection has had smooth and excellent user experience, it has been widely used by developers in more than ten industries such as industrial quality inspection, remote sensing image object detection, automatic inspection, new retail, Internet, and scientific research.
-
-<div align="center">
-  <img src="docs/images/football.gif" width='800'/>
+<div width="1000" align="center">
+  <img src="docs/images/ppdet.gif"/>
 </div>
 
-### Product dynamic
-
-- 2020.11.20: Release `release/0.5` version, Please refer to [change log](docs/CHANGELOG.md) for details.
-- 2020.11.10: Added [SOLOv2](configs/solov2) as an instance segmentation model, which reached 38.6 FPS on a single Tesla V100, 38.8 mask AP on Coco-Val dataset, and  inference speed increased by 24% and mAP by 2.4 percentage points.
-- 2020.10.30: PP-YOLO support rectangular image input, and add a new PACT quantization strategy for slim。
-- 2020.09.30: Released the [mobile-side detection demo](deploy/android_demo), and you can directly scan the code for installation experience.
-- 2020.09.21-27: [Object detection 7 days of punching class] Hand in hand to teach you from the beginning to the advanced level, in-depth understanding of the object detection algorithm life. Join the course QQ group (1136406895) to study together :)
-- 2020.07.24: [PP-YOLO](https://arxiv.org/abs/2007.12099), which is **the most practical** object detection model, was released, it deeply considers the double demands of industrial applications for accuracy and speed, and reached accuracy as 45.2% (the latest 45.9%) on COCO dataset, inference speed as 72.9 FPS on a single Test V100. Please refer to [PP-YOLO](configs/ppyolo/README.md) for details.
-- 2020.06.11: Publish 676 classes of large-scale server-side practical object detection models that are applicable to most application scenarios and can be used directly for prediction or for fine-tuning other tasks.
 
 ### Features
 
 - **Rich Models**
 PaddleDetection provides rich of models, including **100+ pre-trained models** such as **object detection**, **instance segmentation**, **face detection** etc. It covers a variety of **global competition champion** schemes.
 
-- **Use Concisely**
-Modular design, decouple each network component, developers easily build and try various detection models and optimization strategies, quickly get high-performance, customized algorithm.
+- **Highly Flexible:**
+Components are designed to be modular. Model architectures, as well as data preprocess pipelines and optimization strategies, can be easily customized with simple configuration changes.
 
-- **Getting Through End to End**
+- **Production Ready:**
 From data augmentation, constructing models, training, compression, depolyment, get through end to end, and complete support for multi-architecture, multi-device deployment for **cloud and edge device**.
 
 - **High Performance:**
-Based on the high performance core of PaddlePaddle, advantages of training speed and memory occupation are obvious. Support FP16 training, support multi-machine training.
+Based on the high performance core of PaddlePaddle, advantages of training speed and memory occupation are obvious. FP16 training and multi-machine training are supported as well.
 
 #### Overview of Kit Structures
 
-<table>
+<table align="center">
   <tbody>
     <tr align="center" valign="bottom">
       <td>
@@ -58,47 +53,53 @@ Based on the high performance core of PaddlePaddle, advantages of training speed
     </tr>
     <tr valign="top">
       <td>
-        <ul><li><b>Two-Stage Detection</b></li>
+        <ul>
+          <li><b>Object Detection</b></li>
           <ul>
             <li>Faster RCNN</li>
             <li>FPN</li>
             <li>Cascade-RCNN</li>
             <li>Libra RCNN</li>
             <li>Hybrid Task RCNN</li>
-            <li>PSS-Det RCNN</li>
-          </ul>
-        </ul>
-        <ul><li><b>One-Stage Detection</b></li>
-          <ul>
+            <li>PSS-Det</li>
             <li>RetinaNet</li>
             <li>YOLOv3</li>
             <li>YOLOv4</li>  
-            <li>PP-YOLO</li>
+            <li>PP-YOLOv1/v2</li>
+            <li>PP-YOLO-Tiny</li>
             <li>SSD</li>
-          </ul>
-        </ul>
-        <ul><li><b>Anchor Free</b></li>
-          <ul>
             <li>CornerNet-Squeeze</li>
             <li>FCOS</li>  
             <li>TTFNet</li>
-          </ul>
+            <li>PP-PicoDet</li>
+            <li>DETR</li>
+            <li>Deformable DETR</li>
+            <li>Swin Transformer</li>
+            <li>Sparse RCNN</li>
         </ul>
+        <li><b>Instance Segmentation</b></li>
         <ul>
-          <li><b>Instance Segmentation</b></li>
-            <ul>
-             <li>Mask RCNN</li>
-             <li>SOLOv2</li>
-            </ul>
+            <li>Mask RCNN</li>
+            <li>SOLOv2</li>
         </ul>
+        <li><b>Face Detection</b></li>
         <ul>
-          <li><b>Face-Detction</b></li>
-            <ul>
-             <li>FaceBoxes</li>
-             <li>BlazeFace</li>
-             <li>BlazeFace-NAS</li>
-            </ul>
+            <li>FaceBoxes</li>
+            <li>BlazeFace</li>
+            <li>BlazeFace-NAS</li>
         </ul>
+        <li><b>Multi-Object-Tracking</b></li>
+        <ul>
+            <li>JDE</li>
+            <li>FairMOT</li>
+            <li>DeepSort</li>
+        </ul>
+        <li><b>KeyPoint-Detection</b></li>
+        <ul>
+            <li>HRNet</li>
+            <li>HigherHRNet</li>
+        </ul>
+      </ul>
       </td>
       <td>
         <ul>
@@ -116,6 +117,7 @@ Based on the high performance core of PaddlePaddle, advantages of training speed
           <li>MobileNetv1/v3</li>  
           <li>GhostNet</li>
           <li>Efficientnet</li>  
+          <li>BlazeNet</li>  
         </ul>
       </td>
       <td>
@@ -125,6 +127,11 @@ Based on the high performance core of PaddlePaddle, advantages of training speed
             <li>Group Norm</li>
             <li>DCNv2</li>
             <li>Non-local</li>
+          </ul>  
+        </ul>
+        <ul><li><b>KeyPoint</b></li>
+          <ul>
+            <li>DarkPose</li>
           </ul>  
         </ul>
         <ul><li><b>FPN</b></li>
@@ -158,15 +165,18 @@ Based on the high performance core of PaddlePaddle, advantages of training speed
       <td>
         <ul>
           <li>Resize</li>  
+          <li>Lighting</li>  
           <li>Flipping</li>  
           <li>Expand</li>
           <li>Crop</li>
           <li>Color Distort</li>  
           <li>Random Erasing</li>  
           <li>Mixup </li>
+          <li>Mosaic</li>
           <li>Cutmix </li>
           <li>Grid Mask</li>
           <li>Auto Augment</li>  
+          <li>Random Perspective</li>  
         </ul>  
       </td>  
     </tr>
@@ -178,89 +188,110 @@ Based on the high performance core of PaddlePaddle, advantages of training speed
 </table>
 
 #### Overview of Model Performance
-The relationship between COCO mAP and FPS on Tesla V100 of representative models of each architectures and backbones.
+
+The relationship between COCO mAP and FPS on Tesla V100 of representative models of each server side architectures and backbones.
 
 <div align="center">
-  <img src="docs/images/map_fps.png" />
+  <img src="docs/images/fps_map.png" />
+  </div>
+
+  **NOTE:**
+
+  - `CBResNet stands` for `Cascade-Faster-RCNN-CBResNet200vd-FPN`, which has highest mAP on COCO as 53.3%
+
+  - `Cascade-Faster-RCNN` stands for `Cascade-Faster-RCNN-ResNet50vd-DCN`, which has been optimized to 20 FPS inference speed when COCO mAP as 47.8% in PaddleDetection models
+
+  - `PP-YOLO` achieves mAP of 45.9% on COCO and 72.9FPS on Tesla V100. Both precision and speed surpass [YOLOv4](https://arxiv.org/abs/2004.10934)
+
+  - `PP-YOLO v2` is optimized version of `PP-YOLO` which has mAP of 49.5% and 68.9FPS on Tesla V100
+
+  - All these models can be get in [Model Zoo](#ModelZoo)
+
+The relationship between COCO mAP and FPS on Qualcomm Snapdragon 865 of representative mobile side models.
+
+<div align="center">
+  <img src="docs/images/mobile_fps_map.png" width=600 />
 </div>
 
 **NOTE:**
 
-- `CBResNet stands` for `Cascade-Faster-RCNN-CBResNet200vd-FPN`, which has highest mAP on COCO as 53.3%
-
-- `Cascade-Faster-RCNN` stands for `Cascade-Faster-RCNN-ResNet50vd-DCN`, which has been optimized to 20 FPS inference speed when COCO mAP as 47.8% in PaddleDetection models
-
-- The enhanced PaddleDetection model `YOLOv3-ResNet50vd-DCN` is 10.6 absolute percentage points higher than paper on COCO mAP, and inference speed is 61.3 fps, nearly 70% faster than the darknet framework.
-All these models can be get in [Model Zoo](#ModelZoo)
-
+- All data tested on Qualcomm Snapdragon 865(4\*A77 + 4\*A55) processor with batch size of 1 and CPU threads of 4, and use NCNN library in testing, benchmark scripts is publiced at [MobileDetBenchmark](https://github.com/JiweiMaster/MobileDetBenchmark)
+- [PP-PicoDet](configs/picodet) and [PP-YOLO-Tiny](configs/ppyolo) are developed and released by PaddleDetection, other models are not provided in PaddleDetection.
 
 ## Tutorials
 
 ### Get Started
 
-- [Installation guide](docs/tutorials/INSTALL_cn.md)
-- [Quick start on small dataset](docs/tutorials/QUICK_STARTED_cn.md)
-- [Prepare dataset](docs/tutorials/PrepareDataSet.md)
-- [Train/Evaluation/Inference/Deploy](docs/tutorials/DetectionPipeline.md)
-- [How to train a custom dataset](docs/tutorials/Custom_DataSet.md)
-- [FAQ](docs/FAQ.md)
+- [Installation guide](docs/tutorials/INSTALL.md)
+- [Prepare dataset](docs/tutorials/PrepareDataSet_en.md)
+- [Quick start on PaddleDetection](docs/tutorials/GETTING_STARTED.md)
+
 
 ### Advanced Tutorials
 
 - Parameter configuration
-  - [Introduction to the configuration workflow](docs/advanced_tutorials/config_doc/CONFIG_cn.md)
-  - [Parameter configuration for RCNN model](docs/advanced_tutorials/config_doc/RCNN_PARAMS_DOC.md)
-  - [Parameter configuration for YOLOv3 model](docs/advanced_tutorials/config_doc/yolov3_mobilenet_v1.md)
-
-- Tansfer learning
-  - [How to load pretrained model](docs/advanced_tutorials/TRANSFER_LEARNING_cn.md)
+  - [Parameter configuration for RCNN model](docs/tutorials/config_annotation/faster_rcnn_r50_fpn_1x_coco_annotation_en.md)
+  - [Parameter configuration for PP-YOLO model](docs/tutorials/config_annotation/ppyolo_r50vd_dcn_1x_coco_annotation_en.md)
 
 - Model Compression(Based on [PaddleSlim](https://github.com/PaddlePaddle/PaddleSlim))
-  - [Model compression benchmark](slim)
-  - [Quantization](slim/quantization)
-  - [Model pruning](slim/prune)
-  - [Model distillation](slim/distillation)
-  - [Neural Architecture Search](slim/nas)
+  - [Prune/Quant/Distill](configs/slim)
 
 - Inference and deployment
-  - [Export model for inference](docs/advanced_tutorials/deploy/EXPORT_MODEL.md)
-  - [Python inference](deploy/python)
-  - [C++ inference](deploy/cpp)
-  - [Mobile](https://github.com/PaddlePaddle/Paddle-Lite-Demo)
-  - [Serving](deploy/serving)
-  - [Inference benchmark](docs/advanced_tutorials/deploy/BENCHMARK_INFER_cn.md)
+  - [Export model for inference](deploy/EXPORT_MODEL_en.md)
+  - [Paddle Inference](deploy/README_en.md)
+      - [Python inference](deploy/python)
+      - [C++ inference](deploy/cpp)
+  - [Paddle-Lite](deploy/lite)
+  - [Paddle Serving](deploy/serving)
+  - [Export ONNX model](deploy/EXPORT_ONNX_MODEL_en.md)
+  - [Inference benchmark](deploy/BENCHMARK_INFER_en.md)
 
 - Advanced development
-  - [New data augmentations](docs/advanced_tutorials/READER.md)
-  - [New detection algorithms](docs/advanced_tutorials/MODEL_TECHNICAL.md)
+  - [New data augmentations](docs/advanced_tutorials/READER_en.md)
+  - [New detection algorithms](docs/advanced_tutorials/MODEL_TECHNICAL_en.md)
 
 
 ## Model Zoo
 
 - Universal object detection
   - [Model library and baselines](docs/MODEL_ZOO_cn.md)
-  - [Mobile models](configs/mobile/README.md)
-  - [Anchor free models](configs/anchor_free/README.md)
-  - [PP-YOLO](configs/ppyolo/README_cn.md)
-  - [676 classes of object detection](docs/featured_model/LARGE_SCALE_DET_MODEL.md)
-  - [Two-stage practical PSS-Det](configs/rcnn_enhance/README.md)
+  - [PP-YOLO](configs/ppyolo/README.md)
+  - [PP-PicoDet](configs/picodet/README.md)
+  - [Enhanced Anchor Free model--TTFNet](configs/ttfnet/README_en.md)
+  - [Mobile models](static/configs/mobile/README_en.md)
+  - [676 classes of object detection](static/docs/featured_model/LARGE_SCALE_DET_MODEL_en.md)
+  - [Two-stage practical PSS-Det](configs/rcnn_enhance/README_en.md)
+  - [SSLD pretrained models](docs/feature_models/SSLD_PRETRAINED_MODEL_en.md)
 - Universal instance segmentation
   - [SOLOv2](configs/solov2/README.md)
+- Rotation object detection
+  - [S2ANet](configs/dota/README_en.md)
+- [Keypoint detection](configs/keypoint)
+  - [PP-TinyPose](configs/keypoint/tiny_pose)
+  - HigherHRNet
+  - HRNet
+  - LiteHRNet
+- [Multi-Object Tracking](configs/mot/README.md)
+  - [PP-Tracking](deploy/pptracking/README.md)
+  - [DeepSORT](configs/mot/deepsort/README.md)
+  - [JDE](configs/mot/jde/README.md)
+  - [FairMOT](configs/mot/fairmot/README.md)
 - Vertical field
-  - [Face detection](docs/featured_model/FACE_DETECTION.md)
-  - [Pedestrian detection](docs/featured_model/CONTRIB_cn.md)
-  - [Vehicle detection](docs/featured_model/CONTRIB_cn.md)
+  - [Face detection](configs/face_detection/README_en.md)
+  - [Pedestrian detection](configs/pedestrian/README.md)
+  - [Vehicle detection](configs/vehicle/README.md)
 - Competition Plan
-  - [Objects365 2019 Challenge champion model](docs/featured_model/champion_model/CACascadeRCNN.md)
-  - [Best single model of Open Images 2019-Object Detction](docs/featured_model/champion_model/OIDV5_BASELINE_MODEL.md)
+  - [Objects365 2019 Challenge champion model](static/docs/featured_model/champion_model/CACascadeRCNN_en.md)
+  - [Best single model of Open Images 2019-Object Detection](static/docs/featured_model/champion_model/OIDV5_BASELINE_MODEL_en.md)
 
 ## Applications
 
-- [Christmas portrait automatic generation tool](application/christmas)
+- [Christmas portrait automatic generation tool](static/application/christmas)
+- [Android Fitness Demo](https://github.com/zhiboniu/pose_demo_android)
 
 ## Updates
 
-v2.0-rc was released at `02/2021`, add dygraph version, which supports RCNN, YOLOv3, PP-YOLO, SSD/SSDLite, FCOS, TTFNet, SOLOv2, etc. supports model pruning and quantization, supports deploying and accelerating by TensorRT, etc. Please refer to [change log](docs/CHANGELOG.md) for details.
+Updates please refer to [change log](docs/CHANGELOG_en.md) for details.
 
 
 ## License
@@ -271,3 +302,19 @@ PaddleDetection is released under the [Apache 2.0 license](LICENSE).
 ## Contributing
 
 Contributions are highly welcomed and we would really appreciate your feedback!!
+- Thanks [Mandroide](https://github.com/Mandroide) for cleaning the code and unifying some function interface.
+- Thanks [FL77N](https://github.com/FL77N/) for contributing the code of `Sparse-RCNN` model.
+- Thanks [Chen-Song](https://github.com/Chen-Song) for contributing the code of `Swin Faster-RCNN` model.
+- Thanks [yangyudong](https://github.com/yangyudong2020), [hchhtc123](https://github.com/hchhtc123) for contributing PP-Tracking GUI interface.
+- Thanks [Shigure19](https://github.com/Shigure19) for contributing PP-TinyPose fitness APP.
+
+## Citation
+
+```
+@misc{ppdet2019,
+title={PaddleDetection, Object detection and instance segmentation toolkit based on PaddlePaddle.},
+author={PaddlePaddle Authors},
+howpublished = {\url{https://github.com/PaddlePaddle/PaddleDetection}},
+year={2019}
+}
+```

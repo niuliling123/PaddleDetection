@@ -19,14 +19,13 @@ import glob
 import json
 import os
 import os.path as osp
-import sys
 import shutil
 import xml.etree.ElementTree as ET
-from tqdm import tqdm
-import re
 
 import numpy as np
 import PIL.ImageDraw
+from tqdm import tqdm
+import cv2
 
 label_to_num = {}
 categories_list = []
@@ -45,18 +44,15 @@ class MyEncoder(json.JSONEncoder):
             return super(MyEncoder, self).default(obj)
 
 
-def getbbox(self, points):
-    polygons = points
-    mask = self.polygons_to_mask([self.height, self.width], polygons)
-    return self.mask2box(mask)
-
-
 def images_labelme(data, num):
     image = {}
     image['height'] = data['imageHeight']
     image['width'] = data['imageWidth']
     image['id'] = num + 1
-    image['file_name'] = data['imagePath'].split('/')[-1]
+    if '\\' in data['imagePath']:
+        image['file_name'] = data['imagePath'].split('\\')[-1]
+    else:
+        image['file_name'] = data['imagePath'].split('/')[-1]
     return image
 
 
@@ -198,7 +194,8 @@ def voc_get_label_anno(ann_dir_path, ann_ids_path, labels_path):
     labels_ids = list(range(1, len(labels_str) + 1))
 
     with open(ann_ids_path, 'r') as f:
-        ann_ids = f.read().split()
+        ann_ids = [lin.strip().split(' ')[-1] for lin in f.readlines()]
+
     ann_paths = []
     for aid in ann_ids:
         if aid.endswith('xml'):
@@ -233,8 +230,8 @@ def voc_get_coco_annotation(obj, label2id):
     assert label in label2id, "label is not in label2id."
     category_id = label2id[label]
     bndbox = obj.find('bndbox')
-    xmin = float(bndbox.findtext('xmin')) - 1
-    ymin = float(bndbox.findtext('ymin')) - 1
+    xmin = float(bndbox.findtext('xmin'))
+    ymin = float(bndbox.findtext('ymin'))
     xmax = float(bndbox.findtext('xmax'))
     ymax = float(bndbox.findtext('ymax'))
     assert xmax > xmin and ymax > ymin, "Box size error."
@@ -266,15 +263,14 @@ def voc_xmls_to_cocojson(annotation_paths, label2id, output_dir, output_file):
         ann_root = ann_tree.getroot()
 
         img_info = voc_get_image_info(ann_root, im_id)
-        im_id += 1
-        img_id = img_info['id']
         output_json_dict['images'].append(img_info)
 
         for obj in ann_root.findall('object'):
             ann = voc_get_coco_annotation(obj=obj, label2id=label2id)
-            ann.update({'image_id': img_id, 'id': bnd_id})
+            ann.update({'image_id': im_id, 'id': bnd_id})
             output_json_dict['annotations'].append(ann)
             bnd_id = bnd_id + 1
+        im_id += 1
 
     for label, label_id in label2id.items():
         category_info = {'supercategory': 'none', 'id': label_id, 'name': label}
@@ -285,10 +281,97 @@ def voc_xmls_to_cocojson(annotation_paths, label2id, output_dir, output_file):
         f.write(output_json)
 
 
+def widerface_to_cocojson(root_path):
+    train_gt_txt = os.path.join(root_path, "wider_face_split", "wider_face_train_bbx_gt.txt")
+    val_gt_txt = os.path.join(root_path, "wider_face_split", "wider_face_val_bbx_gt.txt")
+    train_img_dir = os.path.join(root_path, "WIDER_train", "images")
+    val_img_dir = os.path.join(root_path, "WIDER_val", "images")
+    assert train_gt_txt
+    assert val_gt_txt
+    assert train_img_dir
+    assert val_img_dir
+    save_path = os.path.join(root_path, "widerface_train.json")
+    widerface_convert(train_gt_txt, train_img_dir, save_path)
+    print("Wider Face train dataset converts sucess, the json path: {}".format(save_path))
+    save_path = os.path.join(root_path, "widerface_val.json")
+    widerface_convert(val_gt_txt, val_img_dir, save_path)
+    print("Wider Face val dataset converts sucess, the json path: {}".format(save_path))
+
+
+def widerface_convert(gt_txt, img_dir, save_path):
+    output_json_dict = {
+        "images": [],
+        "type": "instances",
+        "annotations": [],
+        "categories": [{'supercategory': 'none', 'id': 0, 'name': "human_face"}]
+    }
+    bnd_id = 1  # bounding box start id
+    im_id = 0
+    print('Start converting !')
+    with open(gt_txt) as fd:
+        lines = fd.readlines()
+
+    i = 0
+    while i < len(lines):
+        image_name = lines[i].strip()
+        bbox_num = int(lines[i + 1].strip())
+        i += 2
+        img_info = get_widerface_image_info(img_dir, image_name, im_id)
+        if img_info:
+            output_json_dict["images"].append(img_info)
+            for j in range(i, i + bbox_num):
+                anno = get_widerface_ann_info(lines[j])
+                anno.update({'image_id': im_id, 'id': bnd_id})
+                output_json_dict['annotations'].append(anno)
+                bnd_id += 1
+        else:
+            print("The image dose not exist: {}".format(os.path.join(img_dir, image_name)))
+        bbox_num = 1 if bbox_num == 0 else bbox_num
+        i += bbox_num
+        im_id += 1
+    with open(save_path, 'w') as f:
+        output_json = json.dumps(output_json_dict)
+        f.write(output_json)
+
+
+def get_widerface_image_info(img_root, img_relative_path, img_id):
+    image_info = {}
+    save_path = os.path.join(img_root, img_relative_path)
+    if os.path.exists(save_path):
+        img = cv2.imread(save_path)
+        image_info["file_name"] = os.path.join(os.path.basename(
+            os.path.dirname(img_root)), os.path.basename(img_root),
+            img_relative_path)
+        image_info["height"] = img.shape[0]
+        image_info["width"] = img.shape[1]
+        image_info["id"] = img_id
+    return image_info
+
+
+def get_widerface_ann_info(info):
+    info = [int(x) for x in info.strip().split()]
+    anno = {
+        'area': info[2] * info[3],
+        'iscrowd': 0,
+        'bbox': [info[0], info[1], info[2], info[3]],
+        'category_id': 0,
+        'ignore': 0,
+        'blur': info[4],
+        'expression': info[5],
+        'illumination': info[6],
+        'invalid': info[7],
+        'occlusion': info[8],
+        'pose': info[9]
+    }
+    return anno
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--dataset_type', help='the type of dataset')
+    parser.add_argument(
+        '--dataset_type',
+        help='the type of dataset, can be `voc`, `widerface`, `labelme` or `cityscape`')
     parser.add_argument('--json_input_dir', help='input annotated directory')
     parser.add_argument('--image_input_dir', help='image directory')
     parser.add_argument(
@@ -328,9 +411,14 @@ def main():
         type=str,
         default='voc.json',
         help='In Voc format dataset, path to output json file')
+    parser.add_argument(
+        '--widerface_root_dir',
+        help='The root_path for wider face dataset, which contains `wider_face_split`, `WIDER_train` and `WIDER_val`.And the json file will save in this path',
+        type=str,
+        default=None)
     args = parser.parse_args()
     try:
-        assert args.dataset_type in ['voc', 'labelme', 'cityscape']
+        assert args.dataset_type in ['voc', 'labelme', 'cityscape', 'widerface']
     except AssertionError as e:
         print(
             'Now only support the voc, cityscape dataset and labelme dataset!!')
@@ -345,6 +433,9 @@ def main():
             label2id=label2id,
             output_dir=args.output_dir,
             output_file=args.voc_out_name)
+    elif args.dataset_type == "widerface":
+        assert args.widerface_root_dir
+        widerface_to_cocojson(args.widerface_root_dir)
     else:
         try:
             assert os.path.exists(args.json_input_dir)
@@ -369,20 +460,26 @@ def main():
         total_num = len(glob.glob(osp.join(args.json_input_dir, '*.json')))
         if args.train_proportion != 0:
             train_num = int(total_num * args.train_proportion)
-            os.makedirs(args.output_dir + '/train')
+            out_dir = args.output_dir + '/train'
+            if not os.path.exists(out_dir):
+                os.makedirs(out_dir)
         else:
             train_num = 0
         if args.val_proportion == 0.0:
             val_num = 0
             test_num = total_num - train_num
-            if args.test_proportion != 0.0:
-                os.makedirs(args.output_dir + '/test')
+            out_dir = args.output_dir + '/test'
+            if args.test_proportion != 0.0 and not os.path.exists(out_dir):
+                os.makedirs(out_dir)
         else:
             val_num = int(total_num * args.val_proportion)
             test_num = total_num - train_num - val_num
-            os.makedirs(args.output_dir + '/val')
-            if args.test_proportion != 0.0:
-                os.makedirs(args.output_dir + '/test')
+            val_out_dir = args.output_dir + '/val'
+            if not os.path.exists(val_out_dir):
+                os.makedirs(val_out_dir)
+            test_out_dir = args.output_dir + '/test'
+            if args.test_proportion != 0.0 and not os.path.exists(test_out_dir):
+                os.makedirs(test_out_dir)
         count = 1
         for img_name in os.listdir(args.image_input_dir):
             if count <= train_num:

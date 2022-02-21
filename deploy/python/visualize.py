@@ -15,22 +15,23 @@
 
 from __future__ import division
 
+import os
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw
-from scipy import ndimage
+from PIL import Image, ImageDraw, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+import math
 
 
-def visualize_box_mask(im, results, labels, mask_resolution=14, threshold=0.5):
+def visualize_box_mask(im, results, labels, threshold=0.5):
     """
     Args:
         im (str/np.ndarray): path of image/np.ndarray read by cv2
         results (dict): include 'boxes': np.ndarray: shape:[N,6], N: number of box,
                         matix element:[class, score, x_min, y_min, x_max, y_max]
                         MaskRCNN's results include 'masks': np.ndarray:
-                        shape:[N, class_num, mask_resolution, mask_resolution]
+                        shape:[N, im_h, im_w]
         labels (list): labels:['class1', ..., 'classn']
-        mask_resolution (int): shape of a mask is:[mask_resolution, mask_resolution]
         threshold (float): Threshold of score.
     Returns:
         im (PIL.Image.Image): visualized image
@@ -39,15 +40,11 @@ def visualize_box_mask(im, results, labels, mask_resolution=14, threshold=0.5):
         im = Image.open(im).convert('RGB')
     else:
         im = Image.fromarray(im)
-    if 'masks' in results and 'boxes' in results:
+    if 'masks' in results and 'boxes' in results and len(results['boxes']) > 0:
         im = draw_mask(
-            im,
-            results['boxes'],
-            results['masks'],
-            labels,
-            resolution=mask_resolution)
-    if 'boxes' in results:
-        im = draw_box(im, results['boxes'], labels)
+            im, results['boxes'], results['masks'], labels, threshold=threshold)
+    if 'boxes' in results and len(results['boxes']) > 0:
+        im = draw_box(im, results['boxes'], labels, threshold=threshold)
     if 'segm' in results:
         im = draw_segm(
             im,
@@ -56,8 +53,6 @@ def visualize_box_mask(im, results, labels, mask_resolution=14, threshold=0.5):
             results['score'],
             labels,
             threshold=threshold)
-    if 'landmark' in results:
-        im = draw_lmk(im, results['landmark'])
     return im
 
 
@@ -82,91 +77,49 @@ def get_color_map_list(num_classes):
     return color_map
 
 
-def expand_boxes(boxes, scale=0.0):
-    """
-    Args:
-        boxes (np.ndarray): shape:[N,4], N:number of box,
-                            matix element:[x_min, y_min, x_max, y_max]
-        scale (float): scale of boxes
-    Returns:
-        boxes_exp (np.ndarray): expanded boxes
-    """
-    w_half = (boxes[:, 2] - boxes[:, 0]) * .5
-    h_half = (boxes[:, 3] - boxes[:, 1]) * .5
-    x_c = (boxes[:, 2] + boxes[:, 0]) * .5
-    y_c = (boxes[:, 3] + boxes[:, 1]) * .5
-    w_half *= scale
-    h_half *= scale
-    boxes_exp = np.zeros(boxes.shape)
-    boxes_exp[:, 0] = x_c - w_half
-    boxes_exp[:, 2] = x_c + w_half
-    boxes_exp[:, 1] = y_c - h_half
-    boxes_exp[:, 3] = y_c + h_half
-    return boxes_exp
-
-
-def draw_mask(im, np_boxes, np_masks, labels, resolution=14, threshold=0.5):
+def draw_mask(im, np_boxes, np_masks, labels, threshold=0.5):
     """
     Args:
         im (PIL.Image.Image): PIL image
         np_boxes (np.ndarray): shape:[N,6], N: number of box,
-                               matix element:[class, score, x_min, y_min, x_max, y_max]
-        np_masks (np.ndarray): shape:[N, class_num, resolution, resolution]
+            matix element:[class, score, x_min, y_min, x_max, y_max]
+        np_masks (np.ndarray): shape:[N, im_h, im_w]
         labels (list): labels:['class1', ..., 'classn']
-        resolution (int): shape of a mask is:[resolution, resolution]
         threshold (float): threshold of mask
     Returns:
         im (PIL.Image.Image): visualized image
     """
     color_list = get_color_map_list(len(labels))
-    scale = (resolution + 2.0) / resolution
-    im_w, im_h = im.size
     w_ratio = 0.4
     alpha = 0.7
     im = np.array(im).astype('float32')
-    rects = np_boxes[:, 2:]
-    expand_rects = expand_boxes(rects, scale)
-    expand_rects = expand_rects.astype(np.int32)
-    clsid_scores = np_boxes[:, 0:2]
-    padded_mask = np.zeros((resolution + 2, resolution + 2), dtype=np.float32)
     clsid2color = {}
-    for idx in range(len(np_boxes)):
-        clsid, score = clsid_scores[idx].tolist()
-        clsid = int(clsid)
-        xmin, ymin, xmax, ymax = expand_rects[idx].tolist()
-        w = xmax - xmin + 1
-        h = ymax - ymin + 1
-        w = np.maximum(w, 1)
-        h = np.maximum(h, 1)
-        padded_mask[1:-1, 1:-1] = np_masks[idx, int(clsid), :, :]
-        resized_mask = cv2.resize(padded_mask, (w, h))
-        resized_mask = np.array(resized_mask > threshold, dtype=np.uint8)
-        x0 = min(max(xmin, 0), im_w)
-        x1 = min(max(xmax + 1, 0), im_w)
-        y0 = min(max(ymin, 0), im_h)
-        y1 = min(max(ymax + 1, 0), im_h)
-        im_mask = np.zeros((im_h, im_w), dtype=np.uint8)
-        im_mask[y0:y1, x0:x1] = resized_mask[(y0 - ymin):(y1 - ymin), (
-            x0 - xmin):(x1 - xmin)]
+    expect_boxes = (np_boxes[:, 1] > threshold) & (np_boxes[:, 0] > -1)
+    np_boxes = np_boxes[expect_boxes, :]
+    np_masks = np_masks[expect_boxes, :, :]
+    for i in range(len(np_masks)):
+        clsid, score = int(np_boxes[i][0]), np_boxes[i][1]
+        mask = np_masks[i]
         if clsid not in clsid2color:
             clsid2color[clsid] = color_list[clsid]
         color_mask = clsid2color[clsid]
         for c in range(3):
             color_mask[c] = color_mask[c] * (1 - w_ratio) + w_ratio * 255
-        idx = np.nonzero(im_mask)
+        idx = np.nonzero(mask)
         color_mask = np.array(color_mask)
         im[idx[0], idx[1], :] *= 1.0 - alpha
         im[idx[0], idx[1], :] += alpha * color_mask
     return Image.fromarray(im.astype('uint8'))
 
 
-def draw_box(im, np_boxes, labels):
+def draw_box(im, np_boxes, labels, threshold=0.5):
     """
     Args:
         im (PIL.Image.Image): PIL image
         np_boxes (np.ndarray): shape:[N,6], N: number of box,
                                matix element:[class, score, x_min, y_min, x_max, y_max]
         labels (list): labels:['class1', ..., 'classn']
+        threshold (float): threshold of box
     Returns:
         im (PIL.Image.Image): visualized image
     """
@@ -174,22 +127,34 @@ def draw_box(im, np_boxes, labels):
     draw = ImageDraw.Draw(im)
     clsid2color = {}
     color_list = get_color_map_list(len(labels))
+    expect_boxes = (np_boxes[:, 1] > threshold) & (np_boxes[:, 0] > -1)
+    np_boxes = np_boxes[expect_boxes, :]
 
     for dt in np_boxes:
         clsid, bbox, score = int(dt[0]), dt[2:], dt[1]
-        xmin, ymin, xmax, ymax = bbox
-        w = xmax - xmin
-        h = ymax - ymin
         if clsid not in clsid2color:
             clsid2color[clsid] = color_list[clsid]
         color = tuple(clsid2color[clsid])
 
-        # draw bbox
-        draw.line(
-            [(xmin, ymin), (xmin, ymax), (xmax, ymax), (xmax, ymin),
-             (xmin, ymin)],
-            width=draw_thickness,
-            fill=color)
+        if len(bbox) == 4:
+            xmin, ymin, xmax, ymax = bbox
+            print('class_id:{:d}, confidence:{:.4f}, left_top:[{:.2f},{:.2f}],'
+                  'right_bottom:[{:.2f},{:.2f}]'.format(
+                      int(clsid), score, xmin, ymin, xmax, ymax))
+            # draw bbox
+            draw.line(
+                [(xmin, ymin), (xmin, ymax), (xmax, ymax), (xmax, ymin),
+                 (xmin, ymin)],
+                width=draw_thickness,
+                fill=color)
+        elif len(bbox) == 8:
+            x1, y1, x2, y2, x3, y3, x4, y4 = bbox
+            draw.line(
+                [(x1, y1), (x2, y2), (x3, y3), (x4, y4), (x1, y1)],
+                width=2,
+                fill=color)
+            xmin = min(x1, x2, x3, x4)
+            ymin = min(y1, y2, y3, y4)
 
         # draw label
         text = "{} {:.4f}".format(labels[clsid], score)
@@ -217,7 +182,7 @@ def draw_segm(im,
     clsid2color = {}
     np_segms = np_segms.astype(np.uint8)
     for i in range(np_segms.shape[0]):
-        mask, score, clsid = np_segms[i], np_score[i], np_label[i] + 1
+        mask, score, clsid = np_segms[i], np_score[i], np_label[i]
         if score < threshold:
             continue
 
@@ -228,8 +193,10 @@ def draw_segm(im,
             color_mask[c] = color_mask[c] * (1 - w_ratio) + w_ratio * 255
         idx = np.nonzero(mask)
         color_mask = np.array(color_mask)
-        im[idx[0], idx[1], :] *= 1.0 - alpha
-        im[idx[0], idx[1], :] += alpha * color_mask
+        idx0 = np.minimum(idx[0], im.shape[0] - 1)
+        idx1 = np.minimum(idx[1], im.shape[1] - 1)
+        im[idx0, idx1, :] *= 1.0 - alpha
+        im[idx0, idx1, :] += alpha * color_mask
         sum_x = np.sum(mask, axis=0)
         x = np.where(sum_x > 0.5)[0]
         sum_y = np.sum(mask, axis=1)
@@ -251,48 +218,114 @@ def draw_segm(im,
     return Image.fromarray(im.astype('uint8'))
 
 
-def lmk2out(bboxes, np_lmk, im_info, threshold=0.5, is_bbox_normalized=True):
-    image_w, image_h = im_info['origin_shape']
-    scale = im_info['scale']
-    face_index, landmark, prior_box = np_lmk[:]
-    xywh_res = []
-    if bboxes.shape == (1, 1) or bboxes is None:
-        return np.array([])
-    prior = np.reshape(prior_box, (-1, 4))
-    predict_lmk = np.reshape(landmark, (-1, 10))
-    k = 0
-    for i in range(bboxes.shape[0]):
-        score = bboxes[i][1]
-        if score < threshold:
-            continue
-        theindex = face_index[i][0]
-        me_prior = prior[theindex, :]
-        lmk_pred = predict_lmk[theindex, :]
-        prior_h = me_prior[2] - me_prior[0]
-        prior_w = me_prior[3] - me_prior[1]
-        prior_h_center = (me_prior[2] + me_prior[0]) / 2
-        prior_w_center = (me_prior[3] + me_prior[1]) / 2
-        lmk_decode = np.zeros((10))
-        for j in [0, 2, 4, 6, 8]:
-            lmk_decode[j] = lmk_pred[j] * 0.1 * prior_w + prior_h_center
-        for j in [1, 3, 5, 7, 9]:
-            lmk_decode[j] = lmk_pred[j] * 0.1 * prior_h + prior_w_center
-
-        if is_bbox_normalized:
-            lmk_decode = lmk_decode * np.array([
-                image_h, image_w, image_h, image_w, image_h, image_w, image_h,
-                image_w, image_h, image_w
-            ])
-        xywh_res.append(lmk_decode)
-    return np.asarray(xywh_res)
+def get_color(idx):
+    idx = idx * 3
+    color = ((37 * idx) % 255, (17 * idx) % 255, (29 * idx) % 255)
+    return color
 
 
-def draw_lmk(image, lmk_results):
-    draw = ImageDraw.Draw(image)
-    for lmk_decode in lmk_results:
-        for j in range(5):
-            x1 = int(round(lmk_decode[2 * j]))
-            y1 = int(round(lmk_decode[2 * j + 1]))
-            draw.ellipse(
-                (x1 - 2, y1 - 2, x1 + 3, y1 + 3), fill='green', outline='green')
-    return image
+def draw_pose(imgfile,
+              results,
+              visual_thread=0.6,
+              save_name='pose.jpg',
+              save_dir='output',
+              returnimg=False,
+              ids=None):
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib
+        plt.switch_backend('agg')
+    except Exception as e:
+        logger.error('Matplotlib not found, please install matplotlib.'
+                     'for example: `pip install matplotlib`.')
+        raise e
+
+    skeletons, scores = results['keypoint']
+    skeletons = np.array(skeletons)
+    kpt_nums = 17
+    if len(skeletons) > 0:
+        kpt_nums = skeletons.shape[1]
+    if kpt_nums == 17:  #plot coco keypoint
+        EDGES = [(0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (5, 7), (6, 8),
+                 (7, 9), (8, 10), (5, 11), (6, 12), (11, 13), (12, 14),
+                 (13, 15), (14, 16), (11, 12)]
+    else:  #plot mpii keypoint
+        EDGES = [(0, 1), (1, 2), (3, 4), (4, 5), (2, 6), (3, 6), (6, 7), (7, 8),
+                 (8, 9), (10, 11), (11, 12), (13, 14), (14, 15), (8, 12),
+                 (8, 13)]
+    NUM_EDGES = len(EDGES)
+
+    colors = [[255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0], [170, 255, 0], [85, 255, 0], [0, 255, 0], \
+            [0, 255, 85], [0, 255, 170], [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [85, 0, 255], \
+            [170, 0, 255], [255, 0, 255], [255, 0, 170], [255, 0, 85]]
+    cmap = matplotlib.cm.get_cmap('hsv')
+    plt.figure()
+
+    img = cv2.imread(imgfile) if type(imgfile) == str else imgfile
+
+    color_set = results['colors'] if 'colors' in results else None
+
+    if 'bbox' in results and ids is None:
+        bboxs = results['bbox']
+        for j, rect in enumerate(bboxs):
+            xmin, ymin, xmax, ymax = rect
+            color = colors[0] if color_set is None else colors[color_set[j] %
+                                                               len(colors)]
+            cv2.rectangle(img, (xmin, ymin), (xmax, ymax), color, 1)
+
+    canvas = img.copy()
+    for i in range(kpt_nums):
+        for j in range(len(skeletons)):
+            if skeletons[j][i, 2] < visual_thread:
+                continue
+            if ids is None:
+                color = colors[i] if color_set is None else colors[color_set[j]
+                                                                   %
+                                                                   len(colors)]
+            else:
+                color = get_color(ids[j])
+
+            cv2.circle(
+                canvas,
+                tuple(skeletons[j][i, 0:2].astype('int32')),
+                2,
+                color,
+                thickness=-1)
+
+    to_plot = cv2.addWeighted(img, 0.3, canvas, 0.7, 0)
+    fig = matplotlib.pyplot.gcf()
+
+    stickwidth = 2
+
+    for i in range(NUM_EDGES):
+        for j in range(len(skeletons)):
+            edge = EDGES[i]
+            if skeletons[j][edge[0], 2] < visual_thread or skeletons[j][edge[
+                    1], 2] < visual_thread:
+                continue
+
+            cur_canvas = canvas.copy()
+            X = [skeletons[j][edge[0], 1], skeletons[j][edge[1], 1]]
+            Y = [skeletons[j][edge[0], 0], skeletons[j][edge[1], 0]]
+            mX = np.mean(X)
+            mY = np.mean(Y)
+            length = ((X[0] - X[1])**2 + (Y[0] - Y[1])**2)**0.5
+            angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
+            polygon = cv2.ellipse2Poly((int(mY), int(mX)),
+                                       (int(length / 2), stickwidth),
+                                       int(angle), 0, 360, 1)
+            if ids is None:
+                color = colors[i] if color_set is None else colors[color_set[j]
+                                                                   %
+                                                                   len(colors)]
+            else:
+                color = get_color(ids[j])
+            cv2.fillConvexPoly(cur_canvas, polygon, color)
+            canvas = cv2.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+    if returnimg:
+        return canvas
+    save_name = os.path.join(
+        save_dir, os.path.splitext(os.path.basename(imgfile))[0] + '_vis.jpg')
+    plt.imsave(save_name, canvas[:, :, ::-1])
+    print("keypoint visualize image saved to: " + save_name)
+    plt.close()

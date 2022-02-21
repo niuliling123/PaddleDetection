@@ -5,8 +5,16 @@ Windows 平台下，我们使用`Visual Studio 2019 Community` 进行了测试�
 
 ## 前置条件
 * Visual Studio 2019 (根据Paddle预测库所使用的VS版本选择，请参考 [Visual Studio 不同版本二进制兼容性](https://docs.microsoft.com/zh-cn/cpp/porting/binary-compat-2015-2017?view=vs-2019) )
-* CUDA 9.0 / CUDA 10.0，cudnn 7+ （仅在使用GPU版本的预测库时需要）
+* CUDA 9.0 / CUDA 10.0，cudnn 7+ / TensoRT（仅在使用GPU版本的预测库时需要）
 * CMake 3.0+ [CMake下载](https://cmake.org/download/)
+
+**特别注意：windows下预测库需要的TensorRT版本为：**。
+
+|  预测库版本   | TensorRT版本  |
+|  ----  | ----  |
+| cuda10.1_cudnn7.6_avx_mkl_trt6 |  TensorRT-6.0.1.5  |
+| cuda10.2_cudnn7.6_avx_mkl_trt7 |  TensorRT-7.0.0.11 |
+| cuda11.0_cudnn8.0_avx_mkl_trt7 |  TensorRT-7.2.1.6  |
 
 请确保系统已经安装好上述基本软件，我们使用的是`VS2019`的社区版。
 
@@ -22,13 +30,13 @@ git clone https://github.com/PaddlePaddle/PaddleDetection.git
 **说明**：其中`C++`预测代码在`PaddleDetection/deploy/cpp` 目录，该目录不依赖任何`PaddleDetection`下其他目录。
 
 
-### Step2: 下载PaddlePaddle C++ 预测库 fluid_inference
+### Step2: 下载PaddlePaddle C++ 预测库 paddle_inference
 
-PaddlePaddle C++ 预测库针对不同的`CPU`和`CUDA`版本提供了不同的预编译版本，请根据实际情况下载:  [C++预测库下载列表](https://www.paddlepaddle.org.cn/documentation/docs/zh/develop/advanced_guide/inference_deployment/inference/windows_cpp_inference.html)
+PaddlePaddle C++ 预测库针对不同的`CPU`和`CUDA`版本提供了不同的预编译版本，请根据实际情况下载:  [C++预测库下载列表](https://paddleinference.paddlepaddle.org.cn/user_guides/download_lib.html#windows)
 
-解压后`D:\projects\fluid_inference`目录包含内容为：
+解压后`D:\projects\paddle_inference`目录包含内容为：
 ```
-fluid_inference
+paddle_inference
 ├── paddle # paddle核心库和头文件
 |
 ├── third_party # 第三方依赖库和头文件
@@ -47,24 +55,14 @@ fluid_inference
 
 ### Step4: 编译
 
-#### 通过图形化操作编译CMake
+1. 进入到`cpp`文件夹
+```
+cd D:\projects\PaddleDetection\deploy\cpp
+```
 
-1. 打开Visual Studio 2019 Community，点击`继续但无需代码`
-![step2](https://paddleseg.bj.bcebos.com/inference/vs2019_step1.png)
-2. 点击： `文件`->`打开`->`CMake`
-![step2.1](https://paddleseg.bj.bcebos.com/inference/vs2019_step2.png)
+2. 使用CMake生成项目文件
 
-选择项目代码所在路径，并打开`CMakeList.txt`：
-
-![step2.2](https://paddleseg.bj.bcebos.com/inference/vs2019_step3.png)
-
-3. 点击：`项目`->`cpp_inference_demo的CMake设置`
-
-![step3](https://paddleseg.bj.bcebos.com/inference/vs2019_step4.png)
-
-4. 点击`浏览`，分别设置编译选项指定`CUDA`、`CUDNN_LIB`、`OpenCV`、`Paddle预测库`的路径
-
-三个编译参数的含义说明如下（带*表示仅在使用**GPU版本**预测库时指定, 其中CUDA库版本尽量对齐，**使用9.0、10.0版本，不使用9.2、10.1等版本CUDA库**）：
+编译参数的含义说明如下（带`*`表示仅在使用**GPU版本**预测库时指定, 其中CUDA库版本尽量对齐，**使用9.0、10.0版本，不使用9.2、10.1等版本CUDA库**）：
 
 |  参数名   | 含义  |
 |  ----  | ----  |
@@ -72,36 +70,23 @@ fluid_inference
 | *CUDNN_LIB | CUDNN的库路径 |
 | OPENCV_DIR  | OpenCV的安装路径， |
 | PADDLE_DIR | Paddle预测库的路径 |
+| PADDLE_LIB_NAME | Paddle 预测库名称 |
 
-**注意：** 1. 使用`CPU`版预测库，请把`WITH_GPU`的勾去掉 2. 如果使用的是`openblas`版本，请把`WITH_MKL`勾去掉
-![step4](https://paddleseg.bj.bcebos.com/inference/vs2019_step5.png)
+**注意：** 1. 使用`CPU`版预测库，请把`WITH_GPU`的勾去掉 2. 如果使用的是`openblas`版本，请把`WITH_MKL`勾去掉 3.如无需使用关键点模型可以把`WITH_KEYPOINT`勾去掉
 
-**设置完成后**, 点击上图中`保存并生成CMake缓存以加载变量`。
-
-5. 点击`生成`->`全部生成`
-
-![step6](https://paddleseg.bj.bcebos.com/inference/vs2019_step6.png)
-
-
-#### 通过命令行操作编译CMake
-
-1. 进入到`cpp`文件夹
+执行如下命令项目文件：
 ```
-cd D:\projects\PaddleDetection\deploy\cpp
-```
-
-2. 使用CMake生成项目文件
-```
-cmake . -G "Visual Studio 16 2019" -A x64 -T host=x64 -DWITH_GPU=ON -DWITH_MKL=ON -DCMAKE_BUILD_TYPE=Release -DCUDA_LIB=path_to_cuda_lib -DCUDNN_LIB=path_to_cudnn_lib -DPADDLE_DIR=path_to_paddle_lib -DOPENCV_DIR=path_to_opencv
+cmake . -G "Visual Studio 16 2019" -A x64 -T host=x64 -DWITH_GPU=ON -DWITH_MKL=ON -DCMAKE_BUILD_TYPE=Release -DCUDA_LIB=path_to_cuda_lib -DCUDNN_LIB=path_to_cudnn_lib -DPADDLE_DIR=path_to_paddle_lib -DPADDLE_LIB_NAME=paddle_inference -DOPENCV_DIR=path_to_opencv -DWITH_KEYPOINT=ON
 ```
 
 例如：
 ```
-cmake . -G "Visual Studio 16 2019" -A x64 -T host=x64 -DWITH_GPU=ON -DWITH_MKL=ON -DCMAKE_BUILD_TYPE=Release -DCUDA_LIB=D:\projects\packages\cuda10_0\lib\x64 -DCUDNN_LIB=D:\projects\packages\cuda10_0\lib\x64 -DPADDLE_DIR=D:\projects\packages\fluid_inference -DOPENCV_DIR=D:\projects\packages\opencv3_4_6
+cmake . -G "Visual Studio 16 2019" -A x64 -T host=x64 -DWITH_GPU=ON -DWITH_MKL=ON -DCMAKE_BUILD_TYPE=Release -DCUDA_LIB=D:\projects\packages\cuda10_0\lib\x64 -DCUDNN_LIB=D:\projects\packages\cuda10_0\lib\x64 -DPADDLE_DIR=D:\projects\packages\paddle_inference -DPADDLE_LIB_NAME=paddle_inference -DOPENCV_DIR=D:\projects\packages\opencv3_4_6 -DWITH_KEYPOINT=ON
 ```
 
 3. 编译
-用`Visual Studio 16 2019`打开`cpp`文件夹下的`PaddleObjectDetector.sln`，点击`生成`->`全部生成`
+用`Visual Studio 16 2019`打开`cpp`文件夹下的`PaddleObjectDetector.sln`，将编译模式设置为`Release`，点击`生成`->`全部生成
+
 
 ### Step5: 预测及可视化
 
@@ -114,25 +99,33 @@ cd D:\projects\PaddleDetection\deploy\cpp\out\build\x64-Release
 
 |  参数   | 说明  |
 |  ----  | ----  |
-| --model_dir  | 导出的预测模型所在路径 |
-| --image_path  | 要预测的图片文件路径 |
-| --video_path  | 要预测的视频文件路径 |
+| --model_dir  | 导出的检测预测模型所在路径 |
+| --model_dir_keypoint  | Option | 导出的关键点预测模型所在路径 |
+| --image_file  | 要预测的图片文件路径 |
+| --image_dir  |  要预测的图片文件夹路径   |
+| --video_file  | 要预测的视频文件路径 |
 | --camera_id | Option | 用来预测的摄像头ID，默认为-1（表示不使用摄像头预测）|
-| --use_gpu  | 是否使用 GPU 预测, 支持值为0或1(默认值为0)|
+| --device  | 运行时的设备，可选择`CPU/GPU/XPU`，默认为`CPU`|
 | --gpu_id  |  指定进行推理的GPU device id(默认值为0)|
-| --run_mode | 使用GPU时，默认为fluid, 可选（fluid/trt_fp32/trt_fp16）|
-| --run_benchmark | 是否重复预测来进行benchmark测速 |
-| --output_dir | 输出图片所在的文件夹, 默认为output |
+| --run_mode | 使用GPU时，默认为paddle, 可选（paddle/trt_fp32/trt_fp16/trt_int8）|
+| --batch_size  | 检测模型预测时的batch size，在指定`image_dir`时有效 |
+| --batch_size_keypoint  | 关键点模型预测时的batch size，默认为8 |
+| --run_benchmark | 是否重复预测来进行benchmark测速 ｜
+| --output_dir | 输出图片所在的文件夹, 默认为output ｜
+| --use_mkldnn | CPU预测中是否开启MKLDNN加速 |
+| --cpu_threads | 设置cpu线程数，默认为1 |
+| --use_dark | 关键点模型输出预测是否使用DarkPose后处理，默认为true |
 
 **注意**：  
-（1）如果同时设置了`video_path`和`image_path`，程序仅预测`video_path`。  
+（1）优先级顺序：`camera_id` > `video_file` > `image_dir` > `image_file`。
 （2）如果提示找不到`opencv_world346.dll`，把`D:\projects\packages\opencv3_4_6\build\x64\vc14\bin`文件夹下的`opencv_world346.dll`拷贝到`main.exe`文件夹下即可。
+（3）--run_benchmark如果设置为True，则需要安装依赖`pip install pynvml psutil GPUtil`。
 
 
 `样例一`：
 ```shell
 #不使用`GPU`测试图片 `D:\\images\\test.jpeg`  
-.\main --model_dir=D:\\models\\yolov3_darknet --image_path=D:\\images\\test.jpeg
+.\main --model_dir=D:\\models\\yolov3_darknet --image_file=D:\\images\\test.jpeg
 ```
 
 图片文件`可视化预测结果`会保存在当前目录下`output.jpg`文件中。
@@ -141,25 +134,19 @@ cd D:\projects\PaddleDetection\deploy\cpp\out\build\x64-Release
 `样例二`:
 ```shell
 #使用`GPU`测试视频 `D:\\videos\\test.mp4`  
-.\main --model_dir=D:\\models\\yolov3_darknet --video_path=D:\\videos\\test.mp4 --use_gpu=1
+.\main --model_dir=D:\\models\\yolov3_darknet --video_path=D:\\videos\\test.mp4 --device=GPU
 ```
 
 视频文件目前支持`.mp4`格式的预测，`可视化预测结果`会保存在当前目录下`output.mp4`文件中。
 
 
+`样例三`：
+```shell
+#使用关键点模型与检测模型联合预测，使用 `GPU`预测  
+#检测模型检测到的人送入关键点模型进行关键点预测
+.\main --model_dir=D:\\models\\yolov3_darknet --model_dir_keypoint=D:\\models\\hrnet_w32_256x192 --image_file=D:\\images\\test.jpeg --device=GPU
+```
+
+
 ## 性能测试
-测试环境为：系统: Windows 10专业版系统，CPU: I9-9820X, GPU: GTX 2080 Ti，Paddle预测库: 1.8.4，CUDA: 10.0, CUDNN: 7.4.  
-
-去掉前100轮warmup时间，测试100轮的平均时间，单位ms/image，只计算模型运行时间，不包括数据的处理和拷贝。
-
-
-|模型 | AnalysisPredictor(ms) | 输入|
-|---|----|---|
-| YOLOv3-MobileNetv1 | 41.51 |  608*608
-| faster_rcnn_r50_1x | 194.47 | 1333*1333
-| faster_rcnn_r50_vd_fpn_2x | 43.35 | 1344*1344
-| mask_rcnn_r50_fpn_1x | 96.96 | 1344*1344
-| mask_rcnn_r50_vd_fpn_2x | 97.66 | 1344*1344
-| ppyolo_r18vd | 5.54 | 320*320
-| ppyolo_2x | 56.93 | 608*608
-| ttfnet_darknet | 36.17 | 512*512
+Benchmark请查看[BENCHMARK_INFER](../../BENCHMARK_INFER.md)
